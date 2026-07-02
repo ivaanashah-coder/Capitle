@@ -1,3 +1,2 @@
 # Capitle
-A geography guessing game
-Gives you hints after every guess
+A geography guessing game that gives you hints after every guess.
