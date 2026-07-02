@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Geo Hunt Game</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: #111;
+      color: white;
+    }
+
+    #map {
+      width: min(100%, 900px);
+      height: 500px;
+      margin: 20px auto;
+      border: 2px solid white;
+      position: relative;
+      background-color: #1e3a5f;
+    }
+
+    .quadLabel {
+      position: absolute;
+      font-size: 16px;
+      font-weight: bold;
+      color: #ffffff;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+    }
+
+    .quadLabel.nw { top: 16px; left: 16px; }
+    .quadLabel.ne { top: 16px; right: 16px; }
+    .quadLabel.sw { bottom: 16px; left: 16px; }
+    .quadLabel.se { bottom: 16px; right: 16px; }
+
+    #inputArea {
+      margin-top: 10px;
+    }
+
+    #guessInput {
+      width: 280px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-right: 8px;
+    }
+
+    #guessButton {
+      padding: 10px 20px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    #resetButton {
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    #resetButton:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    #clueBox {
+      margin-top: 10px;
+      font-size: 18px;
+    }
+
+    #score {
+      margin-top: 10px;
+      font-size: 20px;
+    }
+
+    #points {
+      margin-top: 6px;
+      font-size: 18px;
+      color: #ffffff;
+    }
+
+    #cityList {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #ddd;
+    }
+
+    #targetAreaInfo {
+      margin-top: 8px;
+      font-size: 16px;
+      color: #a3d3ff;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: red;
+      border-radius: 50%;
+      position: absolute;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🌍 Capitle</h1>
+<p id="instructions">Type the capital name to guess the city.</p>
+
+<div id="map">
+  <span class="quadLabel nw">NW</span>
+  <span class="quadLabel ne">NE</span>
+  <span class="quadLabel sw">SW</span>
+  <span class="quadLabel se">SE</span>
+</div>
+<div id="clueBox">Loading clue...</div>
+<div id="inputArea">
+  <input id="guessInput" type="text" placeholder="Type a capital name" autocomplete="off" list="capitals" />
+  <button id="guessButton">Submit Guess</button>
+  <datalist id="capitals"></datalist>
+</div>
+<div id="cityList"></div>
+<div id="targetAreaInfo"></div>
+<div id="score"></div>
+<div id="points"></div>
+<button id="giveUpButton">Give Up</button>
+<button id="resetButton">Play Again</button>
+
+<script>
+const mapEl = document.getElementById("map");
+const clueBox = document.getElementById("clueBox");
+const cityList = document.getElementById("cityList");
+const targetAreaInfo = document.getElementById("targetAreaInfo");
+const scoreBox = document.getElementById("score");
+const pointsBox = document.getElementById("points");
+const resetButton = document.getElementById("resetButton");
+const giveUpButton = document.getElementById("giveUpButton");
+const guessInput = document.getElementById("guessInput");
+const guessButton = document.getElementById("guessButton");
+resetButton.addEventListener("click", resetGame);
+giveUpButton.addEventListener("click", giveUp);
+guessButton.addEventListener("click", submitGuess);
+guessInput.addEventListener("input", updateAutocomplete);
+guessInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") submitGuess();
+});
+
+let totalPoints = 0;
+
+const cities = [
+  { name: "Kabul", country: "Afghanistan", continent: "Asia", lat: 34.5553, lng: 69.2075 },
+  { name: "Tirana", country: "Albania", continent: "Europe", lat: 41.3275, lng: 19.8187 },
+  { name: "Algiers", country: "Algeria", continent: "Africa", lat: 36.7538, lng: 3.0588 },
+  { name: "Andorra la Vella", country: "Andorra", continent: "Europe", lat: 42.5078, lng: 1.5211 },
+  { name: "Luanda", country: "Angola", continent: "Africa", lat: -8.8390, lng: 13.2894 },
+  { name: "St. John's", country: "Antigua and Barbuda", continent: "North America", lat: 17.1274, lng: -61.8468 },
+  { name: "Buenos Aires", country: "Argentina", continent: "South America", lat: -34.6037, lng: -58.3816 },
+  { name: "Yerevan", country: "Armenia", continent: "Europe", lat: 40.1792, lng: 44.4991 },
+  { name: "Canberra", country: "Australia", continent: "Australia", lat: -35.2809, lng: 149.1300 },
+  { name: "Vienna", country: "Austria", continent: "Europe", lat: 48.2082, lng: 16.3738 },
+  { name: "Baku", country: "Azerbaijan", continent: "Asia", lat: 40.4093, lng: 49.8671 },
+  { name: "Nassau", country: "Bahamas", continent: "North America", lat: 25.0343, lng: -77.3963 },
+  { name: "Manama", country: "Bahrain", continent: "Asia", lat: 26.2235, lng: 50.5876 },
+  { name: "Dhaka", country: "Bangladesh", continent: "Asia", lat: 23.8103, lng: 90.4125 },
+  { name: "Bridgetown", country: "Barbados", continent: "North America", lat: 13.0975, lng: -59.6167 },
+  { name: "Minsk", country: "Belarus", continent: "Europe", lat: 53.9006, lng: 27.5590 },
+  { name: "Brussels", country: "Belgium", continent: "Europe", lat: 50.8503, lng: 4.3517 },
+  { name: "Belmopan", country: "Belize", continent: "North America", lat: 17.2510, lng: -88.7590 },
+  { name: "Porto-Novo", country: "Benin", continent: "Africa", lat: 6.4969, lng: 2.6289 },
+  { name: "Thimphu", country: "Bhutan", continent: "Asia", lat: 27.4728, lng: 89.6390 },
+  { name: "Sucre", country: "Bolivia", continent: "South America", lat: -19.0196, lng: -65.2619 },
+  { name: "Sarajevo", country: "Bosnia and Herzegovina", continent: "Europe", lat: 43.8563, lng: 18.4131 },
+  { name: "Gaborone", country: "Botswana", continent: "Africa", lat: -24.6282, lng: 25.9231 },
+  { name: "Brasília", country: "Brazil", continent: "South America", lat: -15.8267, lng: -47.9218 },
+  { name: "Bandar Seri Begawan", country: "Brunei", continent: "Asia", lat: 4.9031, lng: 114.9398 },
+  { name: "Sofia", country: "Bulgaria", continent: "Europe", lat: 42.6977, lng: 23.3219 },
+  { name: "Ouagadougou", country: "Burkina Faso", continent: "Africa", lat: 12.3714, lng: -1.5197 },
+  { name: "Gitega", country: "Burundi", continent: "Africa", lat: -3.4270, lng: 29.9246 },
+  { name: "Praia", country: "Cabo Verde", continent: "Africa", lat: 14.9170, lng: -23.5090 },
+  { name: "Phnom Penh", country: "Cambodia", continent: "Asia", lat: 11.5564, lng: 104.9282 },
+  { name: "Yaoundé", country: "Cameroon", continent: "Africa", lat: 3.8480, lng: 11.5021 },
+  { name: "Ottawa", country: "Canada", continent: "North America", lat: 45.4215, lng: -75.6972 },
+  { name: "Bangui", country: "Central African Republic", continent: "Africa", lat: 4.3947, lng: 18.5582 },
+  { name: "N'Djamena", country: "Chad", continent: "Africa", lat: 12.1348, lng: 15.0557 },
+  { name: "Santiago", country: "Chile", continent: "South America", lat: -33.4489, lng: -70.6693 },
+  { name: "Beijing", country: "China", continent: "Asia", lat: 39.9042, lng: 116.4074 },
+  { name: "Bogotá", country: "Colombia", continent: "South America", lat: 4.7110, lng: -74.0721 },
+  { name: "Moroni", country: "Comoros", continent: "Africa", lat: -11.7172, lng: 43.2473 },
+  { name: "Brazzaville", country: "Congo", continent: "Africa", lat: -4.2634, lng: 15.2429 },
+  { name: "Kinshasa", country: "DRC", continent: "Africa", lat: -4.4419, lng: 15.2663 },
+  { name: "San José", country: "Costa Rica", continent: "North America", lat: 9.9281, lng: -84.0907 },
+  { name: "Yamoussoukro", country: "Côte d'Ivoire", continent: "Africa", lat: 6.8276, lng: -5.2893 },
+  { name: "Zagreb", country: "Croatia", continent: "Europe", lat: 45.8150, lng: 15.9819 },
+  { name: "Havana", country: "Cuba", continent: "North America", lat: 23.1136, lng: -82.3666 },
+  { name: "Nicosia", country: "Cyprus", continent: "Europe", lat: 35.1856, lng: 33.3823 },
+  { name: "Prague", country: "Czechia", continent: "Europe", lat: 50.0755, lng: 14.4378 },
+  { name: "Copenhagen", country: "Denmark", continent: "Europe", lat: 55.6761, lng: 12.5683 },
+  { name: "Djibouti", country: "Djibouti", continent: "Africa", lat: 11.5721, lng: 43.1456 },
+  { name: "Roseau", country: "Dominica", continent: "North America", lat: 15.3092, lng: -61.3794 },
+  { name: "Santo Domingo", country: "Dominican Republic", continent: "North America", lat: 18.4861, lng: -69.9312 },
+  { name: "Dili", country: "Timor-Leste", continent: "Asia", lat: -8.5530, lng: 125.5603 },
+  { name: "Quito", country: "Ecuador", continent: "South America", lat: -0.1807, lng: -78.4678 },
+  { name: "Cairo", country: "Egypt", continent: "Africa", lat: 30.0444, lng: 31.2357 },
+  { name: "San Salvador", country: "El Salvador", continent: "North America", lat: 13.6929, lng: -89.2182 },
+  { name: "Malabo", country: "Equatorial Guinea", continent: "Africa", lat: 3.7500, lng: 8.7833 },
+  { name: "Asmara", country: "Eritrea", continent: "Africa", lat: 15.3229, lng: 38.9251 },
+  { name: "Tallinn", country: "Estonia", continent: "Europe", lat: 59.4370, lng: 24.7536 },
+  { name: "Mbabane", country: "Eswatini", continent: "Africa", lat: -26.3054, lng: 31.1367 },
+  { name: "Addis Ababa", country: "Ethiopia", continent: "Africa", lat: 8.9806, lng: 38.7578 },
+  { name: "Suva", country: "Fiji", continent: "Oceania", lat: -18.1248, lng: 178.4501 },
+  { name: "Helsinki", country: "Finland", continent: "Europe", lat: 60.1695, lng: 24.9354 },
+  { name: "Paris", country: "France", continent: "Europe", lat: 48.8566, lng: 2.3522 },
+  { name: "Libreville", country: "Gabon", continent: "Africa", lat: 0.4162, lng: 9.4673 },
+  { name: "Banjul", country: "Gambia", continent: "Africa", lat: 13.4549, lng: -16.5790 },
+  { name: "Tbilisi", country: "Georgia", continent: "Europe", lat: 41.7151, lng: 44.8271 },
+  { name: "Berlin", country: "Germany", continent: "Europe", lat: 52.5200, lng: 13.4050 },
+  { name: "Accra", country: "Ghana", continent: "Africa", lat: 5.6037, lng: -0.1870 },
+  { name: "Athens", country: "Greece", continent: "Europe", lat: 37.9838, lng: 23.7275 },
+  { name: "St. George's", country: "Grenada", continent: "North America", lat: 12.0561, lng: -61.7488 },
+  { name: "Guatemala City", country: "Guatemala", continent: "North America", lat: 14.6349, lng: -90.5069 },
+  { name: "Conakry", country: "Guinea", continent: "Africa", lat: 9.6412, lng: -13.5784 },
+  { name: "Bissau", country: "Guinea-Bissau", continent: "Africa", lat: 11.8592, lng: -15.5956 },
+  { name: "Georgetown", country: "Guyana", continent: "South America", lat: 6.8013, lng: -58.1551 },
+  { name: "Port-au-Prince", country: "Haiti", continent: "North America", lat: 18.5944, lng: -72.3074 },
+  { name: "Tegucigalpa", country: "Honduras", continent: "North America", lat: 14.0723, lng: -87.1921 },
+  { name: "Budapest", country: "Hungary", continent: "Europe", lat: 47.4979, lng: 19.0402 },
+  { name: "Reykjavik", country: "Iceland", continent: "Europe", lat: 64.1466, lng: -21.9426 },
+  { name: "New Delhi", country: "India", continent: "Asia", lat: 28.6139, lng: 77.2090 },
+  { name: "Jakarta", country: "Indonesia", continent: "Asia", lat: -6.2088, lng: 106.8456 },
+  { name: "Tehran", country: "Iran", continent: "Asia", lat: 35.6892, lng: 51.3890 },
+  { name: "Baghdad", country: "Iraq", continent: "Asia", lat: 33.3152, lng: 44.3661 },
+  { name: "Dublin", country: "Ireland", continent: "Europe", lat: 53.3498, lng: -6.2603 },
+  { name: "Jerusalem", country: "Israel", continent: "Asia", lat: 31.7683, lng: 35.2137 },
+  { name: "Rome", country: "Italy", continent: "Europe", lat: 41.9028, lng: 12.4964 },
+  { name: "Kingston", country: "Jamaica", continent: "North America", lat: 18.0190, lng: -76.8099 },
+  { name: "Tokyo", country: "Japan", continent: "Asia", lat: 35.6895, lng: 139.6917 },
+  { name: "Amman", country: "Jordan", continent: "Asia", lat: 31.9454, lng: 35.9284 },
+  { name: "Astana", country: "Kazakhstan", continent: "Asia", lat: 51.1605, lng: 71.4704 },
+  { name: "Nairobi", country: "Kenya", continent: "Africa", lat: -1.2921, lng: 36.8219 },
+  { name: "Tarawa", country: "Kiribati", continent: "Oceania", lat: 1.4518, lng: 172.9717 },
+  { name: "Pristina", country: "Kosovo", continent: "Europe", lat: 42.6629, lng: 21.1655 },
+  { name: "Kuwait City", country: "Kuwait", continent: "Asia", lat: 29.3759, lng: 47.9774 },
+  { name: "Bishkek", country: "Kyrgyzstan", continent: "Asia", lat: 42.8746, lng: 74.5698 },
+  { name: "Vientiane", country: "Laos", continent: "Asia", lat: 17.9757, lng: 102.6331 },
+  { name: "Riga", country: "Latvia", continent: "Europe", lat: 56.9496, lng: 24.1052 },
+  { name: "Beirut", country: "Lebanon", continent: "Asia", lat: 33.8938, lng: 35.5018 },
+  { name: "Maseru", country: "Lesotho", continent: "Africa", lat: -29.3158, lng: 27.4854 },
+  { name: "Monrovia", country: "Liberia", continent: "Africa", lat: 6.3156, lng: -10.8074 },
+  { name: "Tripoli", country: "Libya", continent: "Africa", lat: 32.8872, lng: 13.1913 },
+  { name: "Vaduz", country: "Liechtenstein", continent: "Europe", lat: 47.1410, lng: 9.5209 },
+  { name: "Vilnius", country: "Lithuania", continent: "Europe", lat: 54.6872, lng: 25.2797 },
+  { name: "Luxembourg", country: "Luxembourg", continent: "Europe", lat: 49.6116, lng: 6.1319 },
+  { name: "Antananarivo", country: "Madagascar", continent: "Africa", lat: -18.8792, lng: 47.5079 },
+  { name: "Lilongwe", country: "Malawi", continent: "Africa", lat: -13.9626, lng: 33.7741 },
+  { name: "Kuala Lumpur", country: "Malaysia", continent: "Asia", lat: 3.1390, lng: 101.6869 },
+  { name: "Malé", country: "Maldives", continent: "Asia", lat: 4.1755, lng: 73.5093 },
+  { name: "Bamako", country: "Mali", continent: "Africa", lat: 12.6392, lng: -8.0029 },
+  { name: "Valletta", country: "Malta", continent: "Europe", lat: 35.8989, lng: 14.5146 },
+  { name: "Majuro", country: "Marshall Islands", continent: "Oceania", lat: 7.0897, lng: 171.3817 },
+  { name: "Nouakchott", country: "Mauritania", continent: "Africa", lat: 18.0735, lng: -15.9582 },
+  { name: "Port Louis", country: "Mauritius", continent: "Africa", lat: -20.1609, lng: 57.5012 },
+  { name: "Mexico City", country: "Mexico", continent: "North America", lat: 19.4326, lng: -99.1332 },
+  { name: "Chişinău", country: "Moldova", continent: "Europe", lat: 47.0105, lng: 28.8638 },
+  { name: "Monaco", country: "Monaco", continent: "Europe", lat: 43.7384, lng: 7.4246 },
+  { name: "Ulaanbaatar", country: "Mongolia", continent: "Asia", lat: 47.8864, lng: 106.9057 },
+  { name: "Podgorica", country: "Montenegro", continent: "Europe", lat: 42.4304, lng: 19.2594 },
+  { name: "Rabat", country: "Morocco", continent: "Africa", lat: 33.9716, lng: -6.8498 },
+  { name: "Maputo", country: "Mozambique", continent: "Africa", lat: -25.9692, lng: 32.5732 },
+  { name: "Naypyidaw", country: "Myanmar", continent: "Asia", lat: 19.7633, lng: 96.0785 },
+  { name: "Windhoek", country: "Namibia", continent: "Africa", lat: -22.5609, lng: 17.0658 },
+  { name: "Yaren", country: "Nauru", continent: "Oceania", lat: -0.5477, lng: 166.9209 },
+  { name: "Kathmandu", country: "Nepal", continent: "Asia", lat: 27.7172, lng: 85.3240 },
+  { name: "Amsterdam", country: "Netherlands", continent: "Europe", lat: 52.3676, lng: 4.9041 },
+  { name: "Wellington", country: "New Zealand", continent: "Oceania", lat: -41.2865, lng: 174.7762 },
+  { name: "Managua", country: "Nicaragua", continent: "North America", lat: 12.1140, lng: -86.2362 },
+  { name: "Niamey", country: "Niger", continent: "Africa", lat: 13.5116, lng: 2.1254 },
+  { name: "Abuja", country: "Nigeria", continent: "Africa", lat: 9.0765, lng: 7.3986 },
+  { name: "Pyongyang", country: "North Korea", continent: "Asia", lat: 39.0392, lng: 125.7625 },
+  { name: "Skopje", country: "North Macedonia", continent: "Europe", lat: 41.9973, lng: 21.4280 },
+  { name: "Oslo", country: "Norway", continent: "Europe", lat: 59.9139, lng: 10.7522 },
+  { name: "Muscat", country: "Oman", continent: "Asia", lat: 23.5859, lng: 58.4059 },
+  { name: "Islamabad", country: "Pakistan", continent: "Asia", lat: 33.6844, lng: 73.0479 },
+  { name: "Ngerulmud", country: "Palau", continent: "Oceania", lat: 7.5000, lng: 134.6248 },
+  { name: "Panama City", country: "Panama", continent: "North America", lat: 8.9824, lng: -79.5199 },
+  { name: "Port Moresby", country: "Papua New Guinea", continent: "Oceania", lat: -9.4438, lng: 147.1803 },
+  { name: "Asunción", country: "Paraguay", continent: "South America", lat: -25.2637, lng: -57.5759 },
+  { name: "Lima", country: "Peru", continent: "South America", lat: -12.0464, lng: -77.0428 },
+  { name: "Manila", country: "Philippines", continent: "Asia", lat: 14.5995, lng: 120.9842 },
+  { name: "Warsaw", country: "Poland", continent: "Europe", lat: 52.2297, lng: 21.0122 },
+  { name: "Lisbon", country: "Portugal", continent: "Europe", lat: 38.7223, lng: -9.1393 },
+  { name: "Doha", country: "Qatar", continent: "Asia", lat: 25.2854, lng: 51.5310 },
+  { name: "Bucharest", country: "Romania", continent: "Europe", lat: 44.4268, lng: 26.1025 },
+  { name: "Moscow", country: "Russia", continent: "Europe/Asia", lat: 55.7558, lng: 37.6173 },
+  { name: "Kigali", country: "Rwanda", continent: "Africa", lat: -1.9441, lng: 30.0619 },
+  { name: "Basseterre", country: "Saint Kitts and Nevis", continent: "North America", lat: 17.3026, lng: -62.7177 },
+  { name: "Castries", country: "Saint Lucia", continent: "North America", lat: 14.0101, lng: -60.9875 },
+  { name: "Kingstown", country: "Saint Vincent and the Grenadines", continent: "North America", lat: 13.1600, lng: -61.2248 },
+  { name: "Apia", country: "Samoa", continent: "Oceania", lat: -13.8333, lng: -171.7667 },
+  { name: "San Marino", country: "San Marino", continent: "Europe", lat: 43.9424, lng: 12.4578 },
+  { name: "São Tomé", country: "São Tomé and Príncipe", continent: "Africa", lat: 0.3365, lng: 6.7273 },
+  { name: "Riyadh", country: "Saudi Arabia", continent: "Asia", lat: 24.7136, lng: 46.6753 },
+  { name: "Dakar", country: "Senegal", continent: "Africa", lat: 14.7167, lng: -17.4677 },
+  { name: "Belgrade", country: "Serbia", continent: "Europe", lat: 44.7866, lng: 20.4489 },
+  { name: "Victoria", country: "Seychelles", continent: "Africa", lat: -4.6190, lng: 55.4513 },
+  { name: "Freetown", country: "Sierra Leone", continent: "Africa", lat: 8.4606, lng: -13.2300 },
+  { name: "Singapore", country: "Singapore", continent: "Asia", lat: 1.3521, lng: 103.8198 },
+  { name: "Bratislava", country: "Slovakia", continent: "Europe", lat: 48.1486, lng: 17.1077 },
+  { name: "Ljubljana", country: "Slovenia", continent: "Europe", lat: 46.0569, lng: 14.5058 },
+  { name: "Honiara", country: "Solomon Islands", continent: "Oceania", lat: -9.4456, lng: 159.9729 },
+  { name: "Mogadishu", country: "Somalia", continent: "Africa", lat: 2.0469, lng: 45.3182 },
+  { name: "Pretoria", country: "South Africa", continent: "Africa", lat: -25.7479, lng: 28.2293 },
+  { name: "Seoul", country: "South Korea", continent: "Asia", lat: 37.5665, lng: 126.9780 },
+  { name: "Juba", country: "South Sudan", continent: "Africa", lat: 4.8594, lng: 31.5713 },
+  { name: "Madrid", country: "Spain", continent: "Europe", lat: 40.4168, lng: -3.7038 },
+  { name: "Colombo", country: "Sri Lanka", continent: "Asia", lat: 6.9271, lng: 79.8612 },
+  { name: "Khartoum", country: "Sudan", continent: "Africa", lat: 15.5007, lng: 32.5599 },
+  { name: "Paramaribo", country: "Suriname", continent: "South America", lat: 5.8520, lng: -55.2038 },
+  { name: "Stockholm", country: "Sweden", continent: "Europe", lat: 59.3293, lng: 18.0686 },
+  { name: "Bern", country: "Switzerland", continent: "Europe", lat: 46.9480, lng: 7.4474 },
+  { name: "Damascus", country: "Syria", continent: "Asia", lat: 33.5138, lng: 36.2765 },
+  { name: "Taipei", country: "Taiwan", continent: "Asia", lat: 25.0330, lng: 121.5654 },
+  { name: "Dushanbe", country: "Tajikistan", continent: "Asia", lat: 38.5738, lng: 68.7870 },
+  { name: "Dodoma", country: "Tanzania", continent: "Africa", lat: -6.1630, lng: 35.7516 },
+  { name: "Bangkok", country: "Thailand", continent: "Asia", lat: 13.7563, lng: 100.5018 },
+  { name: "Lomé", country: "Togo", continent: "Africa", lat: 6.1725, lng: 1.2314 },
+  { name: "Nukuʻalofa", country: "Tonga", continent: "Oceania", lat: -21.1394, lng: -175.2018 },
+  { name: "Port of Spain", country: "Trinidad and Tobago", continent: "North America", lat: 10.6549, lng: -61.5019 },
+  { name: "Tunis", country: "Tunisia", continent: "Africa", lat: 36.8065, lng: 10.1815 },
+  { name: "Ankara", country: "Turkey", continent: "Asia", lat: 39.9334, lng: 32.8597 },
+  { name: "Ashgabat", country: "Turkmenistan", continent: "Asia", lat: 37.9601, lng: 58.3261 },
+  { name: "Funafuti", country: "Tuvalu", continent: "Oceania", lat: -8.5211, lng: 179.1962 },
+  { name: "Kampala", country: "Uganda", continent: "Africa", lat: 0.3476, lng: 32.5825 },
+  { name: "Kyiv", country: "Ukraine", continent: "Europe", lat: 50.4501, lng: 30.5234 },
+  { name: "Abu Dhabi", country: "United Arab Emirates", continent: "Asia", lat: 24.4539, lng: 54.3773 },
+  { name: "London", country: "United Kingdom", continent: "Europe", lat: 51.5074, lng: -0.1278 },
+  { name: "Washington, D.C.", country: "United States", continent: "North America", lat: 38.9072, lng: -77.0369 },
+  { name: "Montevideo", country: "Uruguay", continent: "South America", lat: -34.9011, lng: -56.1645 },
+  { name: "Tashkent", country: "Uzbekistan", continent: "Asia", lat: 41.2995, lng: 69.2401 },
+  { name: "Port Vila", country: "Vanuatu", continent: "Oceania", lat: -17.7333, lng: 168.3273 },
+  { name: "Vatican City", country: "Vatican City", continent: "Europe", lat: 41.9029, lng: 12.4534 },
+  { name: "Caracas", country: "Venezuela", continent: "South America", lat: 10.4806, lng: -66.9036 },
+  { name: "Hanoi", country: "Vietnam", continent: "Asia", lat: 21.0278, lng: 105.8342 },
+  { name: "Sana'a", country: "Yemen", continent: "Asia", lat: 15.3694, lng: 44.1910 },
+  { name: "Lusaka", country: "Zambia", continent: "Africa", lat: -15.3875, lng: 28.3228 },
+  { name: "Harare", country: "Zimbabwe", continent: "Africa", lat: -17.8252, lng: 31.0335 }
+];
+
+let map;
+let target;
+let guessed = false;
+let guessCount = 0;
+let previousDistance = null;
+let guessMarkers = [];
+let targetMarker = null;
+let bigTargetCircle = null;
+let smallTargetCircle = null;
+let quadrantMapOverlay = null;
+let mapType = null;
+let googleMapInitialized = false;
+let circleStageTimer = null;
+const bigCircleRadiusKm = 4000;
+const smallCircleRadiusKm = 2200;
+
+function updateAutocomplete() {
+  const input = guessInput.value.trim().toLowerCase();
+  const datalist = document.getElementById("capitals");
+  datalist.innerHTML = "";
+  
+  if (!input) {
+    return;
+  }
+  
+  const filtered = cities.filter(city => 
+    city.name.toLowerCase().startsWith(input) && city.name.toLowerCase() !== input
+  );
+  
+  filtered.forEach(city => {
+    const option = document.createElement("option");
+    option.value = city.name;
+    datalist.appendChild(option);
+  });
+}
+
+const islandCountries = new Set([
+  "Japan", "United Kingdom", "New Zealand", "Australia", "Iceland", "Ireland",
+  "Cuba", "Jamaica", "Haiti", "Dominican Republic", "Puerto Rico", "Fiji",
+  "Mauritius", "Seychelles", "Cyprus", "Malta", "Bahamas", "Barbados",
+  "Trinidad and Tobago", "Mauritius", "Singapore", "Indonesia", "Philippines",
+  "Vanuatu", "Samoa", "Tonga", "Tuvalu", "Kiribati", "Nauru", "Palau",
+  "Marshall Islands", "Micronesia", "Solomon Islands", "Comoros", "Maldives",
+  "Sri Lanka", "Brunei", "Timor-Leste", "Antigua and Barbuda", "St. Lucia",
+  "Dominica", "Grenada", "St. Vincent and the Grenadines", "Saint Kitts and Nevis",
+  "Cape Verde", "Mauritius", "Belize", "Djibouti", "Equatorial Guinea",
+  "Gabon", "Guinea-Bissau", "Sao Tome and Principe", "Seychelles"
+]);
+
+function getQuadrant(city) {
+  if (city.lat >= 0 && city.lng < 0) return "Northwest";
+  if (city.lat >= 0 && city.lng >= 0) return "Northeast";
+  if (city.lat < 0 && city.lng < 0) return "Southwest";
+  return "Southeast";
+}
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const toRad = angle => angle * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+}
+
+function getWarmthHint(currentDistance, previousDistance) {
+  if (previousDistance === null) return "Make your first guess to get a warmer/colder hint.";
+  if (currentDistance < previousDistance) return "Warmer";
+  if (currentDistance > previousDistance) return "Colder";
+  return "Same distance";
+}
+
+function getBorderCountryHint(city) {
+  let nearestCountry = null;
+  let nearestDistance = Infinity;
+  for (const other of cities) {
+    if (other.country === city.country) continue;
+    const dist = haversineDistance(city.lat, city.lng, other.lat, other.lng);
+    if (dist < nearestDistance) {
+      nearestDistance = dist;
+      nearestCountry = other.country;
+    }
+  }
+  if (!nearestCountry) return "This country has no nearby location hint.";
+  
+  const isIsland = islandCountries.has(city.country);
+  return isIsland 
+    ? `This capital's country is right next to ${nearestCountry}.`
+    : `This capital's country borders ${nearestCountry}.`;
+}
+
+function getClueForGuess(guessCount, currentDistance) {
+  if (guessCount === 1) {
+    const hemisphere = target.lat >= 0 ? "Northern" : "Southern";
+    return `Good guess! Here's your first hint: the capital is in the ${hemisphere} Hemisphere.`;
+  }
+
+  if (guessCount === 2) {
+    const quadrant = getQuadrant(target);
+    return `Look sharp: the hidden capital sits in the ${quadrant} quadrant.`;
+  }
+
+  if (guessCount === 3) {
+    return "A broad circle now appears to show the general target area.";
+  }
+
+  if (guessCount === 4) {
+    return "A tighter ring is active — guess inside it for a much hotter result.";
+  }
+
+  if (guessCount === 5) {
+    const warmth = getWarmthHint(currentDistance, previousDistance);
+    return `Hot/cold check: ${warmth}. Keep tracking the red ring.`;
+  }
+
+  if (guessCount === 6) {
+    return getBorderCountryHint(target);
+  }
+
+  if (guessCount === 7) {
+    return `Country clue: this capital is the seat of ${target.country}.`;
+  }
+
+  return `Still searching? Keep using the map, the circle hints, and the country clue.`;
+}
+
+function getAreaHintText(guessCount, currentDistance) {
+  if (guessCount === 1) {
+    const hemisphere = target.lat >= 0 ? "Northern" : "Southern";
+    return `The capital is in the ${hemisphere} Hemisphere. Use this to focus your next guess.`;
+  }
+
+  if (guessCount === 2) {
+    return "A quadrant clue is active. Stay on the correct half of the world.";
+  }
+
+  if (guessCount === 3) {
+    return "That large circle shows the rough region where the capital hides.";
+  }
+
+  if (guessCount === 4) {
+    return "The smaller circle is now your hot zone. Get your next guess inside it.";
+  }
+
+  if (guessCount === 5) {
+    return currentDistance < smallCircleRadiusKm
+      ? "You're very close — the capital is just inside the red ring."
+      : "You’re getting warmer. Keep chasing the red ring.";
+  }
+
+  if (guessCount === 6) {
+    return "Hot/cold check: check whether your latest guess was hotter or colder than the previous one.";
+  }
+
+  if (guessCount === 7) {
+    return "This country clue should help you narrow down the capital dramatically.";
+  }
+
+  return "The hunt continues. Use the clues you’ve unlocked to find the right capital.";
+}
+
+function setClueText() {
+  clueBox.innerText = "Type a capital name to submit your first guess.";
+  targetAreaInfo.innerText = "Hints unlock after each typed guess. Use the input above to play.";
+  clearQuadrantHighlight();
+}
+
+function clearQuadrantHighlight() {
+  clearQuadrantOverlay();
+}
+
+function highlightQuadrant(quadrant) {
+  clearQuadrantOverlay();
+  showQuadrantOverlay(quadrant);
+}
+
+function clearQuadrantOverlay() {
+  if (!quadrantMapOverlay) return;
+  if (mapType === "google") {
+    quadrantMapOverlay.setMap(null);
+  } else {
+    map.removeLayer(quadrantMapOverlay);
+  }
+  quadrantMapOverlay = null;
+}
+
+function showQuadrantOverlay(quadrant) {
+  if (!map) return;
+  clearQuadrantOverlay();
+
+  const quadrantBounds = {
+    Northwest: [
+      [90, -180],
+      [90, 0],
+      [0, 0],
+      [0, -180]
+    ],
+    Northeast: [
+      [90, 0],
+      [90, 180],
+      [0, 180],
+      [0, 0]
+    ],
+    Southwest: [
+      [0, -180],
+      [0, 0],
+      [-90, 0],
+      [-90, -180]
+    ],
+    Southeast: [
+      [0, 0],
+      [0, 180],
+      [-90, 180],
+      [-90, 0]
+    ]
+  };
+
+  const coords = quadrantBounds[quadrant];
+  if (!coords) return;
+
+  if (mapType === "google") {
+    quadrantMapOverlay = new google.maps.Polygon({
+      paths: coords.map(([lat, lng]) => ({ lat, lng })),
+      strokeColor: "#f59e0b",
+      strokeOpacity: 0.9,
+      strokeWeight: 2,
+      fillColor: "#f59e0b",
+      fillOpacity: 0.16,
+      clickable: false,
+      geodesic: true,
+      map
+    });
+  } else {
+    quadrantMapOverlay = L.polygon(coords, {
+      color: "#f59e0b",
+      weight: 2,
+      opacity: 0.9,
+      fillColor: "#f59e0b",
+      fillOpacity: 0.16,
+      interactive: false
+    }).addTo(map);
+  }
+}
+
+function submitGuess() {
+  if (guessed) return;
+  const guessName = guessInput.value.trim();
+  if (!guessName) {
+    clueBox.innerText = "Please type a capital name before submitting.";
+    return;
+  }
+
+  const guessCity = findCapitalByName(guessName);
+  if (!guessCity) {
+    clueBox.innerText = `Unknown capital: "${guessName}". Try another capital name.`;
+    return;
+  }
+
+  guessInput.value = "";
+  guessCount += 1;
+  addGuessMarker(guessCity.lat, guessCity.lng);
+  const currentDistance = haversineDistance(
+    guessCity.lat,
+    guessCity.lng,
+    target.lat,
+    target.lng
+  );
+
+  if (currentDistance <= 200) {
+    finishGame(currentDistance);
+    return;
+  }
+
+  const clueText = getClueForGuess(guessCount, currentDistance);
+  const areaText = getAreaHintText(guessCount, currentDistance);
+
+  clueBox.innerHTML = clueText;
+  targetAreaInfo.innerText = areaText;
+
+  if (guessCount === 2) {
+    highlightQuadrant(getQuadrant(target));
+  }
+
+  if (guessCount === 3) {
+    showTargetHintCircles(false);
+  } else if (guessCount === 4) {
+    showTargetHintCircles(true);
+  } else if (guessCount >= 5) {
+    showTargetHintCircles(currentDistance < smallCircleRadiusKm);
+  }
+
+  previousDistance = currentDistance;
+  scoreBox.innerText = "Guesses: " + guessCount;
+}
+
+function clearMarkers() {
+  guessMarkers.forEach(marker => {
+    if (mapType === "google") marker.setMap(null);
+    else map.removeLayer(marker);
+  });
+  guessMarkers = [];
+  if (targetMarker) {
+    if (mapType === "google") targetMarker.setMap(null);
+    else map.removeLayer(targetMarker);
+    targetMarker = null;
+  }
+}
+
+function addGuessMarker(lat, lng) {
+  if (!map) return;
+  if (mapType === "google") {
+    const marker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      title: "Guessed location",
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 4,
+        fillColor: "#4f46e5",
+        fillOpacity: 0.7,
+        strokeColor: "#ffffff",
+        strokeWeight: 1
+      }
+    });
+    guessMarkers.push(marker);
+  } else {
+    const marker = L.circleMarker([lat, lng], {
+      radius: 5,
+      fillColor: "#4f46e5",
+      color: "#ffffff",
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.7
+    }).addTo(map);
+    guessMarkers.push(marker);
+  }
+}
+
+function clearTargetAreaCircles() {
+  [bigTargetCircle, smallTargetCircle].forEach(circle => {
+    if (!circle) return;
+    if (mapType === "google") circle.setMap(null);
+    else map.removeLayer(circle);
+  });
+  bigTargetCircle = null;
+  smallTargetCircle = null;
+}
+
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9 ]+/g, "")
+    .trim();
+}
+
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function findCapitalByName(input) {
+  const normalizedInput = normalizeText(input);
+  if (!normalizedInput) return null;
+
+  const exactMatch = cities.find(
+    (city) => normalizeText(city.name) === normalizedInput
+  );
+  if (exactMatch) return exactMatch;
+
+  const startsMatch = cities.filter(
+    (city) => normalizeText(city.name).startsWith(normalizedInput)
+  );
+  if (startsMatch.length === 1) return startsMatch[0];
+
+  const includesMatch = cities.filter(
+    (city) => normalizeText(city.name).includes(normalizedInput)
+  );
+  if (includesMatch.length === 1) return includesMatch[0];
+
+  // Fuzzy matching: find best match by similarity
+  let bestMatch = null;
+  let bestDistance = Infinity;
+  const maxDistance = Math.max(3, Math.ceil(normalizedInput.length * 0.4));
+  
+  for (const city of cities) {
+    const distance = levenshteinDistance(normalizedInput, normalizeText(city.name));
+    if (distance < bestDistance && distance <= maxDistance) {
+      bestDistance = distance;
+      bestMatch = city;
+    }
+  }
+  
+  return bestMatch;
+}
+
+function showCityNames() {
+  cityList.innerText = "Type a capital name or point to it on the map!";
+}
+
+function showTargetHintCircles(useSmall = false) {
+  clearTargetAreaCircles();
+  if (!target || !map) return;
+
+  const firstCircle = {
+    radiusKm: useSmall ? smallCircleRadiusKm : bigCircleRadiusKm,
+    strokeColor: useSmall ? "#f59e0b" : "#38bdf8",
+    fillColor: useSmall ? "#fbbf24" : "#38bdf8",
+    opacity: useSmall ? 0.4 : 0.18
+  };
+
+  if (mapType === "google") {
+    bigTargetCircle = new google.maps.Circle({
+      strokeColor: firstCircle.strokeColor,
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: firstCircle.fillColor,
+      fillOpacity: firstCircle.opacity,
+      map,
+      center: { lat: target.lat, lng: target.lng },
+      radius: firstCircle.radiusKm * 1000
+    });
+  } else {
+    bigTargetCircle = L.circle([target.lat, target.lng], {
+      color: firstCircle.strokeColor,
+      weight: 2,
+      opacity: 0.8,
+      fillColor: firstCircle.fillColor,
+      fillOpacity: firstCircle.opacity,
+      radius: firstCircle.radiusKm * 1000
+    }).addTo(map);
+  }
+
+  if (useSmall) {
+    if (mapType === "google") {
+      smallTargetCircle = new google.maps.Circle({
+        strokeColor: "#f43f5e",
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: "#fda4af",
+        fillOpacity: 0.16,
+        map,
+        center: { lat: target.lat, lng: target.lng },
+        radius: smallCircleRadiusKm * 1000
+      });
+    } else {
+      smallTargetCircle = L.circle([target.lat, target.lng], {
+        color: "#f43f5e",
+        weight: 2,
+        opacity: 0.9,
+        fillColor: "#fda4af",
+        fillOpacity: 0.16,
+        radius: smallCircleRadiusKm * 1000
+      }).addTo(map);
+    }
+  }
+
+  targetAreaInfo.innerText = useSmall
+    ? `A smaller circle shows the closer target zone; guess inside the red ring for a hit.`
+    : `A large circle highlights the quadrant and rough target area.`;
+}
+
+function resetGame() {
+  target = cities[Math.floor(Math.random() * cities.length)];
+  guessed = false;
+  guessCount = 0;
+  previousDistance = null;
+  clearMarkers();
+  clearTargetAreaCircles();
+  scoreBox.innerText = "";
+  pointsBox.innerText = `Total points: ${totalPoints}`;
+  setClueText();
+  showCityNames();
+  resetButton.disabled = true;
+  giveUpButton.disabled = false;
+  guessInput.disabled = false;
+  guessButton.disabled = false;
+  guessInput.value = "";
+  guessInput.focus();
+  if (mapType === "google") {
+    map.setCenter({ lat: 20, lng: 0 });
+    map.setZoom(2);
+  }
+  if (mapType === "leaflet") {
+    map.setView([20, 0], 2);
+  }
+}
+
+function finishGame(distanceKm) {
+  guessed = true;
+  guessInput.disabled = true;
+  guessButton.disabled = true;
+  giveUpButton.disabled = true;
+  
+  let score = 0;
+  
+  // Accuracy tier (base score)
+  let accuracyScore = 0;
+  if (distanceKm < 50) {
+    accuracyScore = 2000;
+  } else if (distanceKm < 100) {
+    accuracyScore = 1500;
+  } else if (distanceKm < 200) {
+    accuracyScore = 1200;
+  } else if (distanceKm < smallCircleRadiusKm) {
+    accuracyScore = 800;
+  } else if (distanceKm < bigCircleRadiusKm) {
+    accuracyScore = 400;
+  } else {
+    accuracyScore = 200;
+  }
+  
+  // Efficiency multiplier (fewer guesses = bigger multiplier)
+  let efficiencyMultiplier = 1;
+  if (guessCount === 1) {
+    efficiencyMultiplier = 2.0;
+  } else if (guessCount === 2) {
+    efficiencyMultiplier = 1.6;
+  } else if (guessCount === 3) {
+    efficiencyMultiplier = 1.3;
+  } else if (guessCount === 4) {
+    efficiencyMultiplier = 1.1;
+  } else {
+    efficiencyMultiplier = 1.0;
+  }
+  
+  score = Math.round(accuracyScore * efficiencyMultiplier);
+  
+  // Extra bonus for very fast perfect guesses
+  if (guessCount === 1 && distanceKm < 50) {
+    score += 500;
+  }
+  
+  score = Math.max(100, score);
+  totalPoints += score;
+  clueBox.innerText = "Correct capital was: " + target.name + "!";
+  scoreBox.innerText = "Round points: " + score + " | Guesses: " + guessCount;
+  pointsBox.innerText = "Total points: " + totalPoints;
+  resetButton.disabled = false;
+  if (mapType === "google") {
+    targetMarker = new google.maps.Marker({
+      position: { lat: target.lat, lng: target.lng },
+      map,
+      icon: {
+        path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+        scale: 6,
+        fillColor: "lime",
+        fillOpacity: 1,
+        strokeWeight: 2,
+        strokeColor: "black"
+      }
+    });
+    map.panTo({ lat: target.lat, lng: target.lng });
+    return;
+  }
+  targetMarker = L.marker([target.lat, target.lng], {
+    icon: L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41]
+    })
+  }).addTo(map);
+  map.panTo([target.lat, target.lng]);
+}
+
+function giveUp() {
+  if (guessed) return;
+  guessed = true;
+  guessInput.disabled = true;
+  guessButton.disabled = true;
+  giveUpButton.disabled = true;
+  clueBox.innerText = `You gave up. The capital was ${target.name}, ${target.country}.`;
+  scoreBox.innerText = "Round points: 0 | Guesses: " + guessCount;
+  pointsBox.innerText = `Total points: ${totalPoints}`;
+  resetButton.disabled = false;
+  showTargetLocation();
+}
+
+function showTargetLocation() {
+  if (!target || !map) return;
+  if (mapType === "google") {
+    targetMarker = new google.maps.Marker({
+      position: { lat: target.lat, lng: target.lng },
+      map,
+      icon: {
+        path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+        scale: 6,
+        fillColor: "orange",
+        fillOpacity: 1,
+        strokeWeight: 2,
+        strokeColor: "black"
+      }
+    });
+    map.panTo({ lat: target.lat, lng: target.lng });
+  } else {
+    targetMarker = L.marker([target.lat, target.lng], {
+      icon: L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41]
+      })
+    }).addTo(map);
+    map.panTo([target.lat, target.lng]);
+  }
+}
+
+function findNearestCapital(lat, lng) {
+  let nearest = null;
+  let minDistance = Infinity;
+  for (const city of cities) {
+    const dist = haversineDistance(lat, lng, city.lat, city.lng);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = city;
+    }
+  }
+  return nearest;
+}
+
+function handleMapClick(event) {
+  if (guessed) return;
+  const latlng = mapType === "google" ? event.latLng.toJSON() : event.latlng;
+  const nearestCapital = findNearestCapital(latlng.lat, latlng.lng);
+  if (!nearestCapital) return;
+  
+  guessInput.value = nearestCapital.name;
+  submitGuess();
+}
+
+function initGoogleMap() {
+  mapType = "google";
+  googleMapInitialized = true;
+  map = new google.maps.Map(mapEl, {
+    center: { lat: 20, lng: 0 },
+    zoom: 2,
+    minZoom: 2,
+    mapTypeId: "roadmap"
+  });
+  google.maps.event.addListener(map, "click", handleMapClick);
+  resetGame();
+}
+
+function initLeafletMap() {
+  mapType = "leaflet";
+  if (map) {
+    map.remove();
+    map = null;
+  }
+  map = L.map(mapEl, { minZoom: 2 }).setView([20, 0], 2);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+    attribution: "Tiles © Esri — Source: Esri, Garmin, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), OpenStreetMap contributors, and the GIS User Community",
+    maxZoom: 19
+  }).addTo(map);
+  map.on("click", handleMapClick);
+  resetGame();
+}
+
+function loadLeafletFallback() {
+  if (mapType === "leaflet") return;
+  if (window.L) {
+    initLeafletMap();
+    return;
+  }
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  document.head.appendChild(link);
+  const script = document.createElement("script");
+  script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  script.onload = initLeafletMap;
+  script.onerror = function() {
+    clueBox.innerText = "Leaflet fallback failed. Reload the page with internet access.";
+    resetButton.disabled = true;
+  };
+  document.body.appendChild(script);
+}
+
+window.initMap = initGoogleMap;
+window.gm_authFailure = function() {
+  clueBox.innerText = "Google Maps authentication failed. Using OpenStreetMap fallback.";
+  loadLeafletFallback();
+};
+
+function reportMapError() {
+  clueBox.innerText = "Google Maps failed to load. Using OpenStreetMap fallback.";
+  loadLeafletFallback();
+}
+
+const googleApiKey = "YOUR_API_KEY";
+if (!googleApiKey || googleApiKey === "YOUR_API_KEY") {
+  clueBox.innerText = "Google Maps API key missing. Using OpenStreetMap fallback.";
+  loadLeafletFallback();
+} else {
+  const googleScript = document.createElement("script");
+  googleScript.async = true;
+  googleScript.defer = true;
+  googleScript.src = `https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&language=en&region=US&callback=initMap`;
+  googleScript.onerror = reportMapError;
+  document.body.appendChild(googleScript);
+}
+
+setTimeout(() => {
+  if (!googleMapInitialized && mapType !== "leaflet") {
+    clueBox.innerText = "Google Maps did not initialize. Using OpenStreetMap fallback.";
+    loadLeafletFallback();
+  }
+}, 5000);
+</script>
+
+</body>
+</html>
